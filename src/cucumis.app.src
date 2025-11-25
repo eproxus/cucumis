@@ -1,0 +1,19 @@
+{application, cucumis, [
+    {description, "An OTP application"},
+    {vsn, semver},
+    {registered, []},
+    {mod, {cucumis, []}},
+    {applications, [
+        kernel,
+        stdlib
+    ]},
+    {env, []},
+    {modules, []},
+
+    {licenses, ["MIT"]},
+    {links, [
+        {"Changelog",
+            "https://github.com/eproxus/cucumis/blob/master/CHANGELOG.md"},
+        {"GitHub", "https://github.com/eproxus/cucumis"}
+    ]}
+]}.
