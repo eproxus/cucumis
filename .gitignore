@@ -19,3 +19,5 @@ logs
 rebar3.crashdump
 *~
 doc
+src/cucumis_gherkin_parser.erl
+src/cucumis_gherkin_scanner.erl
