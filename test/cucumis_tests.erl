@@ -49,7 +49,11 @@ feature_fail_test() ->
             {foo,
                 {
                     s,
-                    [{~"foobar", fun(State, Env) -> {failure, State, Env} end}],
+                    [
+                        {~"foobar", fun(_Match, State, Env) ->
+                            {failure, State, Env}
+                        end}
+                    ],
                     fun(S) -> {r, S} end
                 }}
         ]
@@ -62,7 +66,13 @@ feature_module_test() ->
     }),
     ?assertEqual(
         {success, #{
-            ?MODULE => [started, waiting, {word, silky}, joined, guess]
+            ?MODULE => [
+                started,
+                waiting,
+                {word, ~"Maker", ~"silky"},
+                joined,
+                guess
+            ]
         }},
         Result
     ).
@@ -75,23 +85,25 @@ steps() ->
     [
         {
             ~"the Maker starts a game",
-            fun(State, Env) -> {success, [started | State], Env} end
+            fun(_Match, State, Env) -> {success, [started | State], Env} end
         },
         {
             ~"the Maker waits for a Breaker to join",
-            fun(State, Env) -> {success, [waiting | State], Env} end
+            fun(_Match, State, Env) -> {success, [waiting | State], Env} end
         },
         {
-            ~"the Maker has started a game with the word \"silky\"",
-            fun(State, Env) -> {success, [{word, silky} | State], Env} end
+            ~"the $player has started a game with the word \"(?<word>[[:word:]]+)\"",
+            fun(#{player := Player, word := Word}, State, Env) ->
+                {success, [{word, Player, Word} | State], Env}
+            end
         },
         {
             ~"the Breaker joins the Maker's game",
-            fun(State, Env) -> {success, [joined | State], Env} end
+            fun(_Match, State, Env) -> {success, [joined | State], Env} end
         },
         {
             ~"the Breaker must guess a word with 5 characters",
-            fun(State, Env) -> {success, [guess | State], Env} end
+            fun(_Match, State, Env) -> {success, [guess | State], Env} end
         }
     ].
 

@@ -52,12 +52,34 @@ load_defs(#{definitions := Defs}, Context) ->
 load_def(Def, Context) when is_atom(Def) ->
     load_def(module_def(Def), Context);
 load_def(
-    {Name, {_Init, [_ | _], _ResultFun} = Def},
+    {Name, {Init, DefSteps, ResultFun}},
     #{defs := Defs, order := Order} = Context
 ) ->
-    Context#{defs := Defs#{Name => Def}, order => [Name | Order]};
+    Definition = {Init, compile_steps(DefSteps), ResultFun},
+    Context#{
+        defs := Defs#{Name => Definition},
+        order => [Name | Order]
+    };
 load_def({Name, Def}, _Context) ->
     error({invalid_definition, Name, Def}).
+
+compile_steps(Steps) ->
+    lists:map(fun compile_step/1, Steps).
+
+compile_step({Regex, Fun}) ->
+    RegexWordMatch = re:replace(
+        Regex,
+        % Match $word only if preceded by an even number of backslashes,
+        % including zero (e.g `$user`, `$email` etc.)
+        ~B"(?<!\\)(?:\\\\)*\$([[:word:]]+)",
+        % Replace with a named group (e.g. `(?<user>[[:word:]]+)`)
+        ~B"(?<\1>[[:word:]]+)",
+        % Replace all occurences
+        [global]
+    ),
+    {ok, Re} = re:compile(RegexWordMatch, [anchored]),
+    {namelist, Names} = re:inspect(Re, namelist),
+    {{Re, Names}, Fun}.
 
 module_def(Module) ->
     Result =
@@ -84,8 +106,8 @@ find_step(Step, [], #{defs := Defs}) ->
 find_step(Step, [Name | Rest], #{defs := Defs, env := Env} = Context) ->
     {State, NameDefs, ResultFun} = maps:get(Name, Defs),
     case find_def(Step, NameDefs) of
-        {step, Fun} ->
-            {Result, NewState, NewEnv} = Fun(State, Env),
+        {step, Fun, Matches} ->
+            {Result, NewState, NewEnv} = Fun(Matches, State, Env),
             NewContext = Context#{
                 status := Result,
                 defs := Defs#{Name := {NewState, NameDefs, ResultFun}},
@@ -96,9 +118,30 @@ find_step(Step, [Name | Rest], #{defs := Defs, env := Env} = Context) ->
             find_step(Step, Rest, Context)
     end.
 
-find_def(_Step, []) -> not_found;
-find_def({_Type, Desc, _Args}, [{Desc, Fun} | _]) -> {step, Fun};
-find_def(Step, [_ | Rest]) -> find_def(Step, Rest).
+find_def(_Step, []) ->
+    not_found;
+find_def({_Type, StepText, _Args} = Step, [{{Regex, Names}, Fun} | Rest]) ->
+    case re:run(StepText, Regex, [{capture, all_but_first, binary}]) of
+        {match, Result} ->
+            Named =
+                case re:run(StepText, Regex, [{capture, all_names, binary}]) of
+                    {match, NameMatches} ->
+                        maps:from_list([
+                            {binary_to_atom(K), V}
+                         || {K, V} <- lists:zip(Names, NameMatches)
+                        ]);
+                    _ ->
+                        #{}
+                end,
+            Matches = maps:merge(
+                maps:from_list(lists:enumerate(Result)),
+                Named
+            ),
+            {step, Fun, Matches};
+        nomatch ->
+            io:format("nomatch~n", []),
+            find_def(Step, Rest)
+    end.
 
 handle_result(success, Context) -> Context;
 handle_result(failure, Context) -> throw({failure, Context}).
@@ -108,7 +151,8 @@ result(#{status := success, defs := Defs} = _Context) ->
 result(#{status := failure, defs := Defs} = _Context) ->
     {failure, map_results(Defs)}.
 
-map_results(Defs) -> maps:map(fun map_result/2, Defs).
+map_results(Defs) ->
+    maps:map(fun map_result/2, Defs).
 
 map_result(_Name, {State, _Defs, ResultFun}) -> ResultFun(State).
 
