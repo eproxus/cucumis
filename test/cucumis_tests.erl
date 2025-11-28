@@ -1,5 +1,9 @@
 -module(cucumis_tests).
 
+-export([init/0]).
+-export([steps/0]).
+-export([result/1]).
+
 -include_lib("eunit/include/eunit.hrl").
 
 %--- Tests ---------------------------------------------------------------------
@@ -11,6 +15,87 @@ app_test() ->
         {ok, Apps} = Start,
         [?assertEqual(ok, application:stop(A)) || A <- Apps]
     end).
+
+feature_file_does_not_exist_test() ->
+    ?assertError(
+        {file_not_found, "foobar"},
+        cucumis:test("foobar", #{})
+    ).
+
+feature_no_definition_test() ->
+    Feature = #{
+        rules => [#{scenarios => [#{steps => [{given, ~"foobar", []}]}]}]
+    },
+    ?assertError(
+        {no_definition, {given, ~"foobar", []}, [?MODULE]},
+        cucumis:test(Feature, #{definitions => [?MODULE]})
+    ).
+
+feature_invalid_definition_test() ->
+    Feature = #{
+        rules => [#{scenarios => [#{steps => [{given, ~"foobar", []}]}]}]
+    },
+    ?assertError(
+        {invalid_definition, foo, []},
+        cucumis:test(Feature, #{definitions => [{foo, []}]})
+    ).
+
+feature_fail_test() ->
+    Feature = #{
+        rules => [#{scenarios => [#{steps => [{given, ~"foobar", []}]}]}]
+    },
+    Opts = #{
+        definitions => [
+            {foo,
+                {
+                    s,
+                    [{~"foobar", fun(State, Env) -> {failure, State, Env} end}],
+                    fun(S) -> {r, S} end
+                }}
+        ]
+    },
+    ?assertEqual({failure, #{foo => {r, s}}}, cucumis:test(Feature, Opts)).
+
+feature_module_test() ->
+    Result = cucumis:test("test/files/guess_the_word.feature", #{
+        definitions => [?MODULE]
+    }),
+    ?assertEqual(
+        {success, #{
+            ?MODULE => [started, waiting, {word, silky}, joined, guess]
+        }},
+        Result
+    ).
+
+%--- Definitions ---------------------------------------------------------------
+
+init() -> [].
+
+steps() ->
+    [
+        {
+            ~"the Maker starts a game",
+            fun(State, Env) -> {success, [started | State], Env} end
+        },
+        {
+            ~"the Maker waits for a Breaker to join",
+            fun(State, Env) -> {success, [waiting | State], Env} end
+        },
+        {
+            ~"the Maker has started a game with the word \"silky\"",
+            fun(State, Env) -> {success, [{word, silky} | State], Env} end
+        },
+        {
+            ~"the Breaker joins the Maker's game",
+            fun(State, Env) -> {success, [joined | State], Env} end
+        },
+        {
+            ~"the Breaker must guess a word with 5 characters",
+            fun(State, Env) -> {success, [guess | State], Env} end
+        }
+    ].
+
+result(S) -> lists:reverse(S).
 
 %--- Internal ------------------------------------------------------------------
 
