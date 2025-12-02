@@ -12,6 +12,7 @@ Nonterminals
     element
     element_body
     scenario_outline_heading
+    examples_sections
     examples_section
     maybe_tags
     table
@@ -65,8 +66,11 @@ elements -> element elements : ['$1' | '$2'].
 element -> maybe_tags element_body : merge(['$1', '$2']).
 
 element_body -> section_heading steps : merge(['$1', #{type => scenario, steps => '$2'}]).
-element_body -> scenario_outline_heading steps examples_section : merge(['$1', #{type => scenario, steps => '$2', examples => '$3'}]).
+element_body -> scenario_outline_heading steps examples_sections : merge(['$1', #{type => scenario, steps => '$2', examples => '$3'}]).
 element_body -> rule description background_scenario : merge([#{type => rule, name => value('$1')}, '$2', '$3']).
+
+examples_sections -> '$empty' : [].
+examples_sections -> examples_section examples_sections : ['$1' | '$2'].
 
 examples_section -> examples table : '$2'.
 
