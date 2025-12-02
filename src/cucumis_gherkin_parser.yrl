@@ -138,23 +138,37 @@ deindent({_Doc, _Loc, Chars}, Lines) ->
     {match, [Indent]} = re:run(Chars, "\s+", [{capture, first, list}]),
     [string:prefix(L, Indent) || L <- Lines].
 
-table([Header|Rows]) ->
-    [row(split_row(Header), R) || R <- Rows].
+table([Header | Rows]) ->
+    Fun =
+        case split_row(Header) of
+            [<<>> | HeaderCells] ->
+                fun(R) ->
+                    [RK | RC] = split_row(R),
+                    {RK, row(HeaderCells, RC)}
+                end;
+            HeaderCells ->
+                fun(R) -> row(HeaderCells, split_row(R)) end
+        end,
+    lists:map(Fun, Rows).
 
-row(Header, Row) ->
-    #{K => string:trim(V) || K <- Header && V <- split_row(Row)}.
+row(Header, RowCells) ->
+    #{K => string:trim(V) || K <- Header && V <- RowCells}.
 
 split_row(Row) ->
-    [<<>>|Cells]= re:split(Row, ~B"\s*(?<!\\)\|\s*", [trim]),
+    [<<>> | Cells] = re:split(Row, ~B"\s*(?<!\\)\|\s*", [trim]),
     Cells.
 
 group_elements(Elements) ->
-    {ImplicitScenarios, Rules} = lists:foldr(fun
-        (#{type := rule} = Rule, {Scenarios, RulesAcc}) ->
-            {[], [Rule#{scenarios => Scenarios} | RulesAcc]};
-        (Scenario, {Scenarios, RulesAcc}) ->
-            {[Scenario | Scenarios], RulesAcc}
-    end, {[], []}, Elements),
+    {ImplicitScenarios, Rules} = lists:foldr(
+        fun
+            (#{type := rule} = Rule, {Scenarios, RulesAcc}) ->
+                {[], [Rule#{scenarios => Scenarios} | RulesAcc]};
+            (Scenario, {Scenarios, RulesAcc}) ->
+                {[Scenario | Scenarios], RulesAcc}
+        end,
+        {[], []},
+        Elements
+    ),
 
     case ImplicitScenarios of
         [] -> Rules;
