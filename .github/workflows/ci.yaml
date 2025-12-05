@@ -1,0 +1,101 @@
+name: CI/CD
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    name: Build and test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup environment
+        uses: jdx/mise-action@v2
+
+      - name: Build and test
+        run: mise ci
+
+  release:
+    name: Release and publish
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup environment
+        uses: jdx/mise-action@v2
+
+      - name: Calculate next version
+        id: version
+        run: |
+          NEXT_VERSION=$(git cliff --bumped-version)
+          if [ -n "$NEXT_VERSION" ]; then
+            echo "version=$NEXT_VERSION" >> $GITHUB_OUTPUT
+            echo "publish=true" >> $GITHUB_OUTPUT
+            echo "Next version: $NEXT_VERSION"
+          else
+            echo "publish=false" >> $GITHUB_OUTPUT
+            echo "No release needed"
+          fi
+
+      - name: Generate changelog
+        if: steps.version.outputs.publish == 'true'
+        run: git cliff -o CHANGELOG.md
+
+      - name: Commit changelog
+        if: steps.version.outputs.publish == 'true'
+        run: |
+          if git diff --quiet CHANGELOG.md; then
+            echo "No changes to CHANGELOG.md"
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add CHANGELOG.md
+            git commit -m "chore: Version ${{ steps.version.outputs.version }} [skip ci]"
+            git push
+          fi
+
+      - name: Create and push tag
+        if: steps.version.outputs.publish == 'true'
+        run: |
+          git tag -a "${{ steps.version.outputs.version }}" -m "Release ${{ steps.version.outputs.version }}"
+          git push origin "${{ steps.version.outputs.version }}"
+
+      - name: Generate release notes
+        if: steps.version.outputs.publish == 'true'
+        run: git cliff --latest --strip header > release-notes.md
+
+      - name: Create GitHub release
+        if: steps.version.outputs.publish == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ steps.version.outputs.version }}" \
+            --title "Release ${{ steps.version.outputs.version }}" \
+            --notes-file release-notes.md
+
+      - name: Publish artifact
+        if: steps.version.outputs.publish == 'true'
+        run: |
+          set -u
+          echo "Publishing version ${{ steps.version.outputs.version }}"

@@ -1,5 +1,5 @@
 {application, cucumis, [
-    {description, "An OTP application"},
+    {description, "A Cucumber and Gherkin implementation"},
     {vsn, semver},
     {registered, []},
     {mod, {cucumis, []}},
