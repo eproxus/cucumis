@@ -1,0 +1,12 @@
+[tools]
+erlang = "latest"
+git-cliff = "latest"
+rebar = "latest"
+"ubi:bvieira/sv4git" = { version = "latest", exe = "git-sv" }
+
+[tasks.ci]
+run = """
+rebar3 fmt --check
+rebar3 eunit
+rebar3 dialyzer
+"""

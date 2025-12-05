@@ -1,0 +1,123 @@
+name: CI/CD
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    name: Build and test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup environment
+        uses: jdx/mise-action@v2
+
+      - name: Restore/save from/to cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            _build
+            ~/.cache/rebar3
+            !_build/test/logs
+          key: "cache-for\
+                -os-${{runner.os}}\
+                -erlang-${{matrix.erlang}}\
+                -hash-${{hashFiles('rebar.lock', 'rebar.config')}}"
+
+
+      - name: Build and test
+        run: mise ci
+
+  release:
+    name: Release and publish
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup environment
+        uses: jdx/mise-action@v2
+
+      - name: Calculate next version
+        id: version
+        run: |
+          NEXT_VERSION=$(git cliff --bumped-version --output=-)
+
+          if git rev-parse "$NEXT_VERSION" >/dev/null 2>&1; then
+            echo "publish=false" >> $GITHUB_OUTPUT
+            echo "Tag $NEXT_VERSION already exists, no release needed"
+          elif [ -n "$NEXT_VERSION" ]; then
+            echo "version=$NEXT_VERSION" >> $GITHUB_OUTPUT
+            echo "publish=true" >> $GITHUB_OUTPUT
+            echo "Next version: $NEXT_VERSION"
+          else
+            echo "publish=false" >> $GITHUB_OUTPUT
+            echo "No version calculated"
+          fi
+
+      - name: Generate release notes
+        id: notes
+        if: steps.version.outputs.publish == 'true'
+        run: |
+          NOTES=$(git cliff --bump --unreleased --strip all --output=- | tail -n +3)
+          echo "notes<<EOF" >> $GITHUB_OUTPUT
+          echo "$NOTES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Generate changelog
+        if: steps.version.outputs.publish == 'true'
+        run: git cliff --bump -o CHANGELOG.md
+
+      - name: Commit changelog
+        if: steps.version.outputs.publish == 'true'
+        run: |
+          if git diff --quiet CHANGELOG.md; then
+            echo "No changes to CHANGELOG.md"
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add CHANGELOG.md
+            git commit -m "chore: Version ${{ steps.version.outputs.version }}" -m "${{ steps.notes.outputs.notes }}"
+            git push
+          fi
+
+      - name: Create and push tag
+        if: steps.version.outputs.publish == 'true'
+        run: |
+          git tag -a "v${{ steps.version.outputs.version }}" -m "${{ steps.notes.outputs.notes }}"
+          git push origin "v${{ steps.version.outputs.version }}"
+
+      - name: Create GitHub release
+        if: steps.version.outputs.publish == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "v${{ steps.version.outputs.version }}" \
+            --title "Version ${{ steps.version.outputs.version }}" \
+            --notes "${{ steps.notes.outputs.notes }}"
+
+      - name: Publish artifact
+        if: steps.version.outputs.publish == 'true'
+        run: |
+          set -u
+          echo "Publishing version ${{ steps.version.outputs.version }}"
