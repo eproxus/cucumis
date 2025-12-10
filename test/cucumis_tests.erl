@@ -93,7 +93,12 @@ steps() ->
         },
         {
             ~"the $player has started a game with the word \"(?<word>[[:word:]]+)\"",
-            fun(#{player := Player, word := Word}, State, Env) ->
+            fun(
+                % It is possible to refer to matches by keyword or index
+                #{player := Player, 1 := Player, word := Word, 2 := Word},
+                State,
+                Env
+            ) ->
                 {success, [{word, Player, Word} | State], Env}
             end
         },
