@@ -126,10 +126,10 @@ find_def({_Type, StepText, _Args} = Step, [{{Regex, Names}, Fun} | Rest]) ->
             Named =
                 case re:run(StepText, Regex, [{capture, all_names, binary}]) of
                     {match, NameMatches} ->
-                        maps:from_list([
-                            {binary_to_atom(K), V}
+                        #{
+                            binary_to_atom(K) => V
                          || {K, V} <- lists:zip(Names, NameMatches)
-                        ]);
+                        };
                     _ ->
                         #{}
                 end,
