@@ -13,7 +13,7 @@ concurrency:
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   test:
@@ -34,11 +34,10 @@ jobs:
             _build
             ~/.cache/rebar3
             !_build/test/logs
-          key: "cache-for\
-                -os-${{runner.os}}\
-                -erlang-${{matrix.erlang}}\
-                -hash-${{hashFiles('rebar.lock', 'rebar.config')}}"
-
+          key: >-
+            os-${{ runner.os }}
+            erlang-latest
+            hash-${{ hashFiles('rebar.lock', 'rebar.config', 'mise.toml') }}
 
       - name: Build and test
         run: mise ci
@@ -48,6 +47,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: test
     if: github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout repository
@@ -61,17 +62,20 @@ jobs:
       - name: Calculate next version
         id: version
         run: |
-          NEXT_VERSION=$(git cliff --bumped-version --output=-)
+          NEXT_TAG=$(git cliff --bumped-version --output=-)
+          NEXT_VERSION="${NEXT_TAG#v}"
 
-          if git rev-parse "$NEXT_VERSION" >/dev/null 2>&1; then
-            echo "publish=false" >> $GITHUB_OUTPUT
-            echo "Tag $NEXT_VERSION already exists, no release needed"
-          elif [ -n "$NEXT_VERSION" ]; then
-            echo "version=$NEXT_VERSION" >> $GITHUB_OUTPUT
-            echo "publish=true" >> $GITHUB_OUTPUT
-            echo "Next version: $NEXT_VERSION"
+          echo "tag=$NEXT_TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$NEXT_VERSION" >> "$GITHUB_OUTPUT"
+
+          if git rev-parse "$NEXT_TAG" >/dev/null 2>&1; then
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            echo "Tag $NEXT_TAG already exists, no release needed"
+          elif [ -n "$NEXT_TAG" ]; then
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+            echo "Next version: $NEXT_VERSION (tag: $NEXT_TAG)"
           else
-            echo "publish=false" >> $GITHUB_OUTPUT
+            echo "publish=false" >> "$GITHUB_OUTPUT"
             echo "No version calculated"
           fi
 
@@ -80,9 +84,12 @@ jobs:
         if: steps.version.outputs.publish == 'true'
         run: |
           NOTES=$(git cliff --bump --unreleased --strip all --output=- | tail -n +3)
-          echo "notes<<EOF" >> $GITHUB_OUTPUT
-          echo "$NOTES" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          delimiter="$(openssl rand -hex 8)"
+          {
+            echo "notes<<${delimiter}"
+            echo "$NOTES"
+            echo "${delimiter}"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Generate changelog
         if: steps.version.outputs.publish == 'true'
@@ -90,6 +97,8 @@ jobs:
 
       - name: Commit changelog
         if: steps.version.outputs.publish == 'true'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
           if git diff --quiet CHANGELOG.md; then
             echo "No changes to CHANGELOG.md"
@@ -97,27 +106,35 @@ jobs:
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
             git add CHANGELOG.md
-            git commit -m "chore: Version ${{ steps.version.outputs.version }}" -m "${{ steps.notes.outputs.notes }}"
+            git commit -m "chore: Version $VERSION"
             git push
           fi
 
       - name: Create and push tag
         if: steps.version.outputs.publish == 'true'
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+          NOTES: ${{ steps.notes.outputs.notes }}
         run: |
-          git tag -a "v${{ steps.version.outputs.version }}" -m "${{ steps.notes.outputs.notes }}"
-          git push origin "v${{ steps.version.outputs.version }}"
+          git tag -a "$TAG" -m "$NOTES"
+          git push origin "$TAG"
 
       - name: Create GitHub release
         if: steps.version.outputs.publish == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+          VERSION: ${{ steps.version.outputs.version }}
+          NOTES: ${{ steps.notes.outputs.notes }}
         run: |
-          gh release create "v${{ steps.version.outputs.version }}" \
-            --title "Version ${{ steps.version.outputs.version }}" \
-            --notes "${{ steps.notes.outputs.notes }}"
+          gh release create "$TAG" \
+            --title "Version $VERSION" \
+            --notes "$NOTES"
 
       - name: Publish artifact
         if: steps.version.outputs.publish == 'true'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
           set -u
-          echo "Publishing version ${{ steps.version.outputs.version }}"
+          echo "Publishing version $VERSION"
