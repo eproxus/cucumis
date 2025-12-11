@@ -2,6 +2,28 @@
 
 A Cucumber and Gherkin implementation for Erlang.
 
+## Features
+
+- **Full Gherkin syntax support**
+    - [X] _Feature_, _Rule_, _Scenario_, and _Background_
+    - [X] _Scenario Outline_ and _Examples_
+    - [X] Tags
+    - [X] Data tables and doc strings
+    - [ ] Clear and readable parser error messages
+- **Easy and flexible step definitions**
+    - [X] Easy regex capture groups for step arguments
+    - [ ] Access to step arguments, such as doc strings and tables
+- **Test case execution**
+    - [X] Supports multiple, composable step definition implementations
+        - [X] Configurable at runtime
+        - [ ] Configurable in `sys.config`
+    - [ ] _Background_ executes for each rule and scenario
+    - [ ] Common test integration
+    - [ ] EUnit integration
+    - [ ] Test case traceability
+        - [ ] Full step log
+        - [ ] Original line numbers reported for failing steps
+
 ## Parsing
 
 ```erlang
