@@ -92,11 +92,21 @@ module_def(Module) ->
 test_feature(#{rules := Rules} = _Feature, Context) ->
     lists:foldl(fun test_rule/2, Context, Rules).
 
-test_rule(#{scenarios := Scenarios} = _Rule, Context) ->
-    lists:foldl(fun test_scenario/2, Context, Scenarios).
-
-test_scenario(#{steps := Steps} = _Scenario, Context) ->
+test_background([], Context) ->
+    Context;
+test_background(Steps, Context) ->
     lists:foldl(fun test_step/2, Context, Steps).
+
+test_rule(#{scenarios := Scenarios} = Rule, Context) ->
+    Background = maps:get(background, Rule, []),
+    lists:foldl(
+        fun(S, C) -> test_scenario(S, Background, C) end,
+        Context,
+        Scenarios
+    ).
+
+test_scenario(#{steps := Steps} = _Scenario, Background, Context) ->
+    lists:foldl(fun test_step/2, test_background(Background, Context), Steps).
 
 test_step(Step, #{order := Order} = Context) ->
     find_step(Step, Order, Context).
@@ -139,7 +149,6 @@ find_def({_Type, StepText, _Args} = Step, [{{Regex, Names}, Fun} | Rest]) ->
             ),
             {step, Fun, Matches};
         nomatch ->
-            io:format("nomatch~n", []),
             find_def(Step, Rest)
     end.
 

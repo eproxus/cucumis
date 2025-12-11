@@ -17,7 +17,7 @@ A Cucumber and Gherkin implementation for Erlang.
     - [X] Supports multiple, composable step definition implementations
         - [X] Configurable at runtime
         - [ ] Configurable in `sys.config`
-    - [ ] _Background_ executes for each rule and scenario
+    - [X] _Background_ steps for rules executes for each scenario
     - [ ] Common test integration
     - [ ] EUnit integration
     - [ ] Test case traceability

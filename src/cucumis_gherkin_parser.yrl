@@ -45,7 +45,7 @@ Terminals
 Rootsymbol
     featurefile.
 
-featurefile -> feature_heading background_scenario elements : merge(['$1', '$2', #{rules => group_elements('$3')}]).
+featurefile -> feature_heading background_scenario elements : merge(['$1', #{rules => group_elements('$2', '$3')}]).
 
 feature_heading -> maybe_tags feature description : merge(['$1', #{name => value('$2')}, '$3']).
 
@@ -158,7 +158,7 @@ split_row(Row) ->
     [<<>> | Cells] = re:split(Row, ~B"\s*(?<!\\)\|\s*", [trim]),
     Cells.
 
-group_elements(Elements) ->
+group_elements(GlobalBackground, Elements) ->
     {ImplicitScenarios, Rules} = lists:foldr(
         fun
             (#{type := rule} = Rule, {Scenarios, RulesAcc}) ->
@@ -172,5 +172,5 @@ group_elements(Elements) ->
 
     case ImplicitScenarios of
         [] -> Rules;
-        _ -> [#{scenarios => ImplicitScenarios} | Rules]
+        _ -> [maps:merge(GlobalBackground, #{scenarios => ImplicitScenarios}) | Rules]
     end.

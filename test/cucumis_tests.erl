@@ -77,6 +77,52 @@ feature_module_test() ->
         Result
     ).
 
+feature_background_test() ->
+    Feature = #{
+        rules => [
+            #{
+                % Implicit rule
+                background => [{given, ~"feature bg", []}],
+                scenarios => [
+                    #{steps => [{given, ~"feature sc1", []}]},
+                    #{steps => [{given, ~"feature sc2", []}]}
+                ]
+            },
+            #{
+                name => ~"specific rule",
+                background => [{given, ~"rule bg", []}],
+                scenarios => [
+                    #{steps => [{given, ~"rule sc1", []}]},
+                    #{steps => [{given, ~"rule sc2", []}]}
+                ]
+            }
+        ]
+    },
+    Steps = [
+        {
+            ~"$level $type",
+            fun(#{level := L, type := T}, S, E) ->
+                {success, [{L, T} | S], E}
+            end
+        }
+    ],
+    Opts = #{definitions => [{def, {[], Steps, fun lists:reverse/1}}]},
+    ?assertEqual(
+        {success, #{
+            def => [
+                {~"feature", ~"bg"},
+                {~"feature", ~"sc1"},
+                {~"feature", ~"bg"},
+                {~"feature", ~"sc2"},
+                {~"rule", ~"bg"},
+                {~"rule", ~"sc1"},
+                {~"rule", ~"bg"},
+                {~"rule", ~"sc2"}
+            ]
+        }},
+        cucumis:test(Feature, Opts)
+    ).
+
 %--- Definitions ---------------------------------------------------------------
 
 init() -> [].
