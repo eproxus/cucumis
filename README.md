@@ -20,6 +20,7 @@ A Cucumber and Gherkin implementation for Erlang.
     - [X] _Background_ steps for rules executes for each scenario
     - [ ] Common test integration
     - [ ] EUnit integration
+    - [ ] Before/after hook support for all levels (_Feature_, _Step_ etc.)
     - [ ] Test case traceability
         - [ ] Full step log
         - [ ] Original line numbers reported for failing steps
