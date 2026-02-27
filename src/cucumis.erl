@@ -116,8 +116,12 @@ find_step(Step, [], #{defs := Defs}) ->
 find_step(Step, [Name | Rest], #{defs := Defs, env := Env} = Context) ->
     {State, NameDefs, ResultFun} = maps:get(Name, Defs),
     case find_def(Step, NameDefs) of
-        {step, Fun, Matches} ->
-            {Result, NewState, NewEnv} = Fun(Matches, State, Env),
+        {step, Fun, Matches, Args} ->
+            {Result, NewState, NewEnv} =
+                case erlang:fun_info(Fun, arity) of
+                    {arity, 3} -> Fun(Matches, State, Env);
+                    {arity, 4} -> Fun(Matches, State, Env, Args)
+                end,
             NewContext = Context#{
                 status := Result,
                 defs := Defs#{Name := {NewState, NameDefs, ResultFun}},
@@ -130,7 +134,7 @@ find_step(Step, [Name | Rest], #{defs := Defs, env := Env} = Context) ->
 
 find_def(_Step, []) ->
     not_found;
-find_def({_Type, StepText, _Args} = Step, [{{Regex, Names}, Fun} | Rest]) ->
+find_def({_Type, StepText, Args} = Step, [{{Regex, Names}, Fun} | Rest]) ->
     case re:run(StepText, Regex, [{capture, all_but_first, binary}]) of
         {match, Result} ->
             Named =
@@ -147,7 +151,7 @@ find_def({_Type, StepText, _Args} = Step, [{{Regex, Names}, Fun} | Rest]) ->
                 maps:from_list(lists:enumerate(Result)),
                 Named
             ),
-            {step, Fun, Matches};
+            {step, Fun, Matches, Args};
         nomatch ->
             find_def(Step, Rest)
     end.

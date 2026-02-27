@@ -12,7 +12,7 @@ A Cucumber and Gherkin implementation for Erlang.
     - [ ] Clear and readable parser error messages
 - **Easy and flexible step definitions**
     - [X] Easy regex capture groups for step arguments
-    - [ ] Access to step arguments, such as doc strings and tables
+    - [X] Access to step arguments, such as doc strings and tables
 - **Test case execution**
     - [X] Supports multiple, composable step definition implementations
         - [X] Configurable at runtime

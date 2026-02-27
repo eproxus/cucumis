@@ -123,6 +123,22 @@ feature_background_test() ->
         cucumis:test(Feature, Opts)
     ).
 
+feature_args_test() ->
+    Result = cucumis:test("test/files/tables.feature", #{
+        definitions => [?MODULE, tables_steps]
+    }),
+    ?assertEqual(
+        {success, #{
+            tables_steps => #{
+                cucumbers => [start, eat, left],
+                twitter => [{users, [~"Aslak", ~"Julien", ~"Matt"]}],
+                airports => [locations]
+            },
+            ?MODULE => []
+        }},
+        Result
+    ).
+
 %--- Definitions ---------------------------------------------------------------
 
 init() -> [].

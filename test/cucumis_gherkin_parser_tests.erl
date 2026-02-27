@@ -29,10 +29,22 @@ tables_with_row_keys_test() ->
         {~"KSEA", #{~"lat" => ~"47.448889", ~"lon" => ~"-122.309444"}},
         {~"KJFK", #{~"lat" => ~"40.639722", ~"lon" => ~"-73.778889"}}
     ],
-    Step = {given, <<"some airport locations">>, [Table]},
-    Scenario = #{name => <<"Row keys">>, type => scenario, steps => [Step]},
-    Rule = #{scenarios => [Scenario]},
-    Feature = #{name => <<"tables">>, rules => [Rule]},
+    Feature = #{
+        name => ~"tables",
+        rules => [
+            #{
+                scenarios => [
+                    #{
+                        name => ~"Row keys",
+                        type => scenario,
+                        steps => [
+                            {given, ~"some airport locations", [Table]}
+                        ]
+                    }
+                ]
+            }
+        ]
+    },
     ?assertEqual(Feature, cucumis:parse(Text)).
 
 %--- Internal ------------------------------------------------------------------
